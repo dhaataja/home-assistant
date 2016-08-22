@@ -5,43 +5,48 @@ For more details about this platform, please refer to the documentation at
 https://home-assistant.io/components/binary_sensor.template/
 """
 import logging
+import voluptuous as vol
+import homeassistant.helpers.config_validation as cv
 
 from homeassistant.components.binary_sensor import (BinarySensorDevice,
                                                     ENTITY_ID_FORMAT,
-                                                    SENSOR_CLASSES)
+                                                    SENSOR_CLASSES,
+                                                    PLATFORM_SCHEMA)
+
 from homeassistant.const import (ATTR_FRIENDLY_NAME, CONF_VALUE_TEMPLATE,
                                  ATTR_ENTITY_ID, MATCH_ALL)
 from homeassistant.exceptions import TemplateError
 from homeassistant.helpers.entity import generate_entity_id
 from homeassistant.helpers import template
 from homeassistant.helpers.event import track_state_change
-from homeassistant.util import slugify
 
 CONF_SENSORS = 'sensors'
+CONF_SENSOR_CLASS = 'sensor_class'
+
+SENSOR_CLASS_SCHEMA = vol.In(SENSOR_CLASSES)
+
+SENSOR_SCHEMA = vol.Schema({
+    vol.Required(CONF_VALUE_TEMPLATE): cv.template,
+    vol.Optional(ATTR_FRIENDLY_NAME): cv.string,
+    vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
+    vol.Optional(CONF_SENSOR_CLASS, default=None): SENSOR_CLASS_SCHEMA
+})
+
+PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
+    vol.Required(CONF_SENSORS): vol.Schema({cv.slug: SENSOR_SCHEMA}),
+})
+
 _LOGGER = logging.getLogger(__name__)
 
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Setup template binary sensors."""
     sensors = []
-    if config.get(CONF_SENSORS) is None:
-        _LOGGER.error('Missing configuration data for binary_sensor platform')
-        return False
 
     for device, device_config in config[CONF_SENSORS].items():
 
-        if device != slugify(device):
-            _LOGGER.error('Found invalid key for binary_sensor.template: %s. '
-                          'Use %s instead', device, slugify(device))
-            continue
-
-        if not isinstance(device_config, dict):
-            _LOGGER.error('Missing configuration data for binary_sensor %s',
-                          device)
-            continue
-
         friendly_name = device_config.get(ATTR_FRIENDLY_NAME, device)
-        sensor_class = device_config.get('sensor_class')
+        sensor_class = device_config.get(CONF_SENSOR_CLASS)
         value_template = device_config.get(CONF_VALUE_TEMPLATE)
 
         if sensor_class not in SENSOR_CLASSES:
